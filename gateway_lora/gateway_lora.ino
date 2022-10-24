@@ -12,10 +12,18 @@
 #include <string>
 #include "Arduino.h"
 #include <HardwareSerial.h>
+#include <BlynkSimpleEsp32.h>
 //----firebase--------
 
 #define API_KEY "WFlGeZDmqtQqeEkFlcSXPtIVt4KPt8BtNH2KyBn7"
 #define DATABASE_URL "https://esp32-7691f-default-rtdb.firebaseio.com/"
+FirebaseData fbdo;
+FirebaseAuth auth;
+//-------Blynk v2-----
+
+#define BLYNK_TEMPLATE_ID "TMPLZ9qSov21"
+#define BLYNK_DEVICE_NAME "Lora"
+
 
 //-----Lorawan------
 /**
@@ -28,6 +36,8 @@
 #define RXLORA 16
 #define M0 4
 #define M1 0
+
+#define LED 2
 
 HardwareSerial E32(2);
 
@@ -225,11 +235,12 @@ int hexToDec(String hexString)
 
 void setup() {
     Serial.begin(115200);
+    pinMode(2,OUTPUT);
     setuplora();
     Lora_SetMode(mode0);
-   // smartconfigwifi();
-   // setupfirebase();
-
+    smartconfigwifi();
+    setupfirebase();
+    digitalWrite(2,HIGH);
 }
 
 void loop() {
@@ -254,6 +265,14 @@ void loop() {
          // E32.println(0x01); //return 1 byte status oke 
 
          /*sent data to firebase*/
+         Firebase.setString(fbdo,  "/Node "+String(ID_node)+"/humi" , humi );
+         Firebase.setString(fbdo,  "/Node "+String(ID_node)+"/temp" , temp );
+
+         digitalWrite(2,HIGH);
+         delay(1000);
+         digitalWrite(2,LOW);
+         delay(1000);
+         digitalWrite(2,HIGH);
       }
 
     //}
