@@ -10,9 +10,10 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "Arduino.h"
 #include <HardwareSerial.h>
-#include <BlynkSimpleEsp32.h>
+#include "soc/rtc_wdt.h"
+#include "esp_int_wdt.h"
+#include "esp_task_wdt.h"
 //----firebase--------
 
 #define API_KEY "WFlGeZDmqtQqeEkFlcSXPtIVt4KPt8BtNH2KyBn7"
@@ -24,7 +25,6 @@ FirebaseAuth auth;
 #define BLYNK_TEMPLATE_ID "TMPLZ9qSov21"
 #define BLYNK_DEVICE_NAME "Lora"
 
-
 //-----Lorawan------
 /**
  * format data: lora_add | ID_node | data_temp | data_humi | checksum
@@ -34,13 +34,16 @@ FirebaseAuth auth;
 //UART ESP32 - LORA
 #define TXLORA 17
 #define RXLORA 16
-#define M0 4
-#define M1 0
-
+#define M0 0
+#define M1 4
 #define LED 2
+#define OUT1 12
+#define OUT2 14
+#define OUT3 27
+#define OUT4 24
 
 HardwareSerial E32(2);
-
+SemaphoreHandle_t  xMutex;
 typedef enum 
 {
   mode0 = 0,
@@ -48,6 +51,15 @@ typedef enum
   mode2 = 2,
   mode3 = 3,
 } E32_mode;
+
+void disable_wdt()
+{
+    rtc_wdt_protect_off();
+    rtc_wdt_disable();
+    disableCore0WDT();
+    disableCore1WDT();
+    disableLoopWDT();
+}
 
 void setuplora()
 {
@@ -93,6 +105,21 @@ void Lora_SetMode ( E32_mode _mode)
     }
     
 }
+/*Setup for control device*/
+void control_setup(void)
+{
+  pinMode(OUT1,OUTPUT);
+  pinMode(OUT2,OUTPUT);
+  pinMode(OUT3,OUTPUT);
+  pinMode(OUT4,OUTPUT);
+  pinMode(LED,OUTPUT);
+  /*state init*/
+  digitalWrite(OUT1,HIGH);
+  digitalWrite(OUT2,HIGH);
+  digitalWrite(OUT3,HIGH);
+  digitalWrite(OUT4,HIGH);
+}
+
 
 //-----------Smartconfig Wifi setup--------------------------
 void smartconfigwifi () {
@@ -232,50 +259,103 @@ int hexToDec(String hexString)
   return decValue;
 }
 
+/*Task*/
+int f;
+void Task1( void * parameter) {
+  while(1) {
+     
+        xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex
+        Serial.println("task1");   
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/temp",10);
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/humi",10);
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/light",10);
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/air",10);
+  
+        Firebase.setInt(fbdo,"/Node 1/threshold/temp",10);
+        Firebase.setInt(fbdo,"/Node 1/threshold/humi",10);
+        Firebase.setInt(fbdo,"/Node 1/threshold/light",10);
+        Firebase.setInt(fbdo,"/Node 1/threshold/air",10);
+  
+        Firebase.setBool(fbdo,"/Node 1/autocontrol",false);
+        Firebase.setBool(fbdo,"/Node 1/control/motor",true);
+        Firebase.setBool(fbdo,"/Node 1/control/fan",true);
+        Firebase.setBool(fbdo,"/Node 1/control/lamp",true);
+        xSemaphoreGive(xMutex); // release mutex
+      vTaskDelay(1000); 
+  }
+}
+
+void Task2( void * parameter) {
+  while(1) {
+        
+        
+        xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex
+        Serial.println("task2");
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/temp",30);
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/humi",30);
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/light",30);
+        Firebase.setInt(fbdo,"/Node 1/DataFromNode/air",30);
+  
+        Firebase.setInt(fbdo,"/Node 1/threshold/temp",30);
+        Firebase.setInt(fbdo,"/Node 1/threshold/humi",30);
+        Firebase.setInt(fbdo,"/Node 1/threshold/light",30);
+        Firebase.setInt(fbdo,"/Node 1/threshold/air",30);
+  
+        Firebase.setBool(fbdo,"/Node 1/autocontrol",true);
+        Firebase.setBool(fbdo,"/Node 1/control/motor",false);
+        Firebase.setBool(fbdo,"/Node 1/control/fan",false);
+        Firebase.setBool(fbdo,"/Node 1/control/lamp",false);
+        xSemaphoreGive(xMutex); // release mutex
+        
+      vTaskDelay(1000); 
+  }
+}
+
+
+
 
 void setup() {
     Serial.begin(115200);
-    pinMode(2,OUTPUT);
+    disable_wdt();
+    control_setup();
+    digitalWrite(LED,LOW);
     setuplora();
     Lora_SetMode(mode0);
     smartconfigwifi();
     setupfirebase();
-    digitalWrite(2,HIGH);
+    digitalWrite(LED,HIGH);
+    /*create task handle*/
+    xMutex = xSemaphoreCreateMutex();
+    xTaskCreate(Task1,"Task1",10000,NULL,1,NULL);
+    xTaskCreate(Task2,"Task2",10000,NULL,1,NULL);
+    f=0;
+      
+
 }
 
+
 void loop() {
-     
-   if (E32.available()) {
-    String Data_From_Lora = E32.readString();
-    Serial.println(Data_From_Lora);
-    
-   // if(verify_rxdata(&Data_From_Lora)==true)
-   // {
-   //   Serial.println("check sum oke !");
-      if(check_lora_add(&Data_From_Lora) == true)
-      {
-          //Serial.println("oke em !");
-          uint8_t ID_node = Get_node_ID(&Data_From_Lora);
-          uint8_t humi,temp;
-          Get_data(&Data_From_Lora,&humi,&temp);
-          Serial.println("du lieu tu Node");
-          Serial.println(ID_node);
-         Serial.println("gia tri do am dat: ");
-         Serial.println(humi);
-         // E32.println(0x01); //return 1 byte status oke 
-
-         /*sent data to firebase*/
-         Firebase.setString(fbdo,  "/Node "+String(ID_node)+"/humi" , humi );
-         Firebase.setString(fbdo,  "/Node "+String(ID_node)+"/temp" , temp );
-
-         digitalWrite(2,HIGH);
-         delay(1000);
-         digitalWrite(2,LOW);
-         delay(1000);
-         digitalWrite(2,HIGH);
-      }
-
-    //}
-    
-  }
+//    if (E32.available()) 
+//      {
+//        String Data_From_Lora = E32.readString();
+//        Serial.println(Data_From_Lora);
+//    
+//          if(check_lora_add(&Data_From_Lora) == true)
+//          {
+//              //Serial.println("oke em !");
+//              uint8_t ID_node = Get_node_ID(&Data_From_Lora);
+//              uint8_t humi,temp;
+//              Get_data(&Data_From_Lora,&humi,&temp);
+//              Serial.println("du lieu tu Node");
+//              Serial.println(ID_node);
+//             Serial.println("gia tri do am dat: ");
+//             Serial.println(humi);
+//             // E32.println(0x01); //return 1 byte status oke 
+//    
+//             /*sent data to firebase*/
+//            
+//    
+//         }
+//      }
+   
 }
