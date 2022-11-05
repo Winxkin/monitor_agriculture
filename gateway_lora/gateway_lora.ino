@@ -27,7 +27,7 @@ FirebaseAuth auth;
 
 //-----Lorawan------
 /**
- * format data: lora_add | ID_node | data_temp | data_humi | checksum
+ * format data: lora_add | ID_node | data_temp | data_humi | data_light  checksum
  */
 #define LORA_ADD  0x11
 
@@ -44,6 +44,9 @@ FirebaseAuth auth;
 
 HardwareSerial E32(2);
 SemaphoreHandle_t  xMutex;
+
+static int humi,light,temp;
+
 typedef enum 
 {
   mode0 = 0,
@@ -260,55 +263,152 @@ int hexToDec(String hexString)
 }
 
 /*Task*/
-int f;
 void Task1( void * parameter) {
   while(1) {
-     
-        xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex
-        Serial.println("task1");   
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/temp",10);
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/humi",10);
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/light",10);
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/air",10);
-  
-        Firebase.setInt(fbdo,"/Node 1/threshold/temp",10);
-        Firebase.setInt(fbdo,"/Node 1/threshold/humi",10);
-        Firebase.setInt(fbdo,"/Node 1/threshold/light",10);
-        Firebase.setInt(fbdo,"/Node 1/threshold/air",10);
-  
-        Firebase.setBool(fbdo,"/Node 1/autocontrol",false);
-        Firebase.setBool(fbdo,"/Node 1/control/motor",true);
-        Firebase.setBool(fbdo,"/Node 1/control/fan",true);
-        Firebase.setBool(fbdo,"/Node 1/control/lamp",true);
-        xSemaphoreGive(xMutex); // release mutex
-      vTaskDelay(1000); 
+        //Serial.println("task1");
+        xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
+        Firebase.setInt(fbdo,"/Node1/DataFromNode/temp",temp);
+        Firebase.setInt(fbdo,"/Node1/DataFromNode/humi",humi);
+        Firebase.setInt(fbdo,"/Node1/DataFromNode/light",light);
+        Firebase.setInt(fbdo,"/Node1/DataFromNode/air",10);
+        xSemaphoreGive(xMutex); // release mutex 
   }
 }
 
 void Task2( void * parameter) {
-  while(1) {
-        
-        
-        xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex
-        Serial.println("task2");
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/temp",30);
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/humi",30);
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/light",30);
-        Firebase.setInt(fbdo,"/Node 1/DataFromNode/air",30);
-  
-        Firebase.setInt(fbdo,"/Node 1/threshold/temp",30);
-        Firebase.setInt(fbdo,"/Node 1/threshold/humi",30);
-        Firebase.setInt(fbdo,"/Node 1/threshold/light",30);
-        Firebase.setInt(fbdo,"/Node 1/threshold/air",30);
-  
-        Firebase.setBool(fbdo,"/Node 1/autocontrol",true);
-        Firebase.setBool(fbdo,"/Node 1/control/motor",false);
-        Firebase.setBool(fbdo,"/Node 1/control/fan",false);
-        Firebase.setBool(fbdo,"/Node 1/control/lamp",false);
+	bool autocontrol;
+	bool fan, lamp ,motor;
+  bool fan_temp, lamp_temp ,motor_temp;
+	int _air,_humi,_light,_temp;
+	  while(1) {
+	      //Serial.println("task2");
+			  xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+        if(Firebase.RTDB.getBool(&fbdo,"/Node1/autocontrol"))
+			  {
+          autocontrol = fbdo.boolData(); 
+        }
         xSemaphoreGive(xMutex); // release mutex
-        
-      vTaskDelay(1000); 
-  }
+			  /*check autocontrol*/
+			  if(autocontrol == true)
+			  {
+            xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+            if(Firebase.RTDB.getInt(&fbdo,"/Node1/threshold/humi"))
+            {
+                _humi = fbdo.intData();
+            }
+            if(Firebase.RTDB.getInt(&fbdo,"/Node1/threshold/light"))
+            {
+                _light = fbdo.intData();
+            }
+            if(Firebase.RTDB.getInt(&fbdo,"/Node1/threshold/temp"))
+            {
+                _temp = fbdo.intData();
+            }
+            xSemaphoreGive(xMutex); // release mutex
+            /*check the threshold and control device*/
+            if( temp > _temp)
+            {
+                Serial.println("Turn on the fan.");
+                xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+                Firebase.setBool(fbdo,"/Node1/control/fan",true);
+                xSemaphoreGive(xMutex); // release mutex
+            }
+            else
+            {
+                Serial.println("Turn off the fan.");
+                xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+                Firebase.setBool(fbdo,"/Node1/control/fan",false);
+                xSemaphoreGive(xMutex); // release mutex
+            }
+
+            if( light < _light)
+            {
+                Serial.println("Turn on the lamp.");
+                xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+                Firebase.setBool(fbdo,"/Node1/control/lamp",true);
+                xSemaphoreGive(xMutex); // release mutex
+            }
+            else
+            {
+                Serial.println("Turn off the lamp.");
+                xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+                Firebase.setBool(fbdo,"/Node1/control/lamp",false);
+                xSemaphoreGive(xMutex); // release mutex
+            }
+            
+            if( humi < _humi)
+            {
+                Serial.println("Turn on the motor.");
+                xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+                Firebase.setBool(fbdo,"/Node1/control/motor",true);
+                xSemaphoreGive(xMutex); // release mutex
+            }
+            else
+            {
+                Serial.println("Turn off the motor.");
+                xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+                Firebase.setBool(fbdo,"/Node1/control/motor",false);
+                xSemaphoreGive(xMutex); // release mutex
+            }
+           
+			  }
+			  else
+			  {	 
+              xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
+              if(Firebase.RTDB.getBool(&fbdo,"/Node1/control/fan"))
+              {
+                fan_temp = fbdo.boolData(); 
+              }
+              if(Firebase.RTDB.getBool(&fbdo,"/Node1/control/lamp"))
+              {
+                lamp_temp = fbdo.boolData(); 
+              }
+              if(Firebase.RTDB.getBool(&fbdo,"/Node1/control/motor"))
+              {
+                motor_temp = fbdo.boolData(); 
+              }
+              xSemaphoreGive(xMutex); // release mutex
+            /*check status from user and control device*/
+            if(fan != fan_temp)
+            {
+                fan = fan_temp;
+                if(fan == true)
+                {
+                  Serial.println("Turn on the fan.");
+                }    
+                else 
+                {
+                  Serial.println("Turn off the fan.");
+                }               
+            }
+
+            if(lamp != lamp_temp)
+            {
+                lamp = lamp_temp;
+                if(lamp == true)
+                {
+                  Serial.println("Turn on the lamp.");
+                }    
+                else 
+                {
+                  Serial.println("Turn off the lamp.");
+                }               
+            }
+
+            if(motor != motor_temp)
+            {
+                motor = motor_temp;
+                if(motor == true)
+                {
+                  Serial.println("Turn on the motor.");
+                }    
+                else 
+                {
+                  Serial.println("Turn off the motor.");
+                }               
+            }
+			  } 
+	  }
 }
 
 
@@ -328,34 +428,34 @@ void setup() {
     xMutex = xSemaphoreCreateMutex();
     xTaskCreate(Task1,"Task1",10000,NULL,1,NULL);
     xTaskCreate(Task2,"Task2",10000,NULL,1,NULL);
-    f=0;
-      
-
+    humi = 10;
+    light = 10;
+    temp = 10;
 }
 
 
 void loop() {
-//    if (E32.available()) 
-//      {
-//        String Data_From_Lora = E32.readString();
-//        Serial.println(Data_From_Lora);
-//    
-//          if(check_lora_add(&Data_From_Lora) == true)
-//          {
-//              //Serial.println("oke em !");
-//              uint8_t ID_node = Get_node_ID(&Data_From_Lora);
-//              uint8_t humi,temp;
-//              Get_data(&Data_From_Lora,&humi,&temp);
-//              Serial.println("du lieu tu Node");
-//              Serial.println(ID_node);
-//             Serial.println("gia tri do am dat: ");
-//             Serial.println(humi);
-//             // E32.println(0x01); //return 1 byte status oke 
-//    
-//             /*sent data to firebase*/
-//            
-//    
-//         }
-//      }
+    if (E32.available()) 
+      {
+        String Data_From_Lora = E32.readString();
+        Serial.println(Data_From_Lora);
+    
+          if(check_lora_add(&Data_From_Lora) == true)
+          {
+              //Serial.println("oke em !");
+              uint8_t ID_node = Get_node_ID(&Data_From_Lora);
+              uint8_t humi,temp;
+              Get_data(&Data_From_Lora,&humi,&temp);
+              Serial.println("du lieu tu Node");
+              Serial.println(ID_node);
+             Serial.println("gia tri do am dat: ");
+             Serial.println(humi);
+             // E32.println(0x01); //return 1 byte status oke 
+    
+             /*sent data to firebase*/
+            
+    
+         }
+     }
    
 }
