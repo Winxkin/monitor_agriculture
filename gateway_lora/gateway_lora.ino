@@ -45,7 +45,7 @@ FirebaseAuth auth;
 HardwareSerial E32(2);
 SemaphoreHandle_t  xMutex;
 
-static int humi,light,temp;
+static uint8_t humi,light,temp;
 
 typedef enum 
 {
@@ -235,13 +235,14 @@ uint8_t Get_node_ID(String *Data)
     return (uint8_t)_data[1];
 } 
 
-void Get_data(String *Data, uint8_t *humi, uint8_t *temp)
+void Get_data(String *Data, uint8_t *humi, uint8_t *temp, uint8_t *light)
 {
   int lengh = Data->length() + 1;
   char _data[lengh];
   Data->toCharArray(_data,lengh ); 
   *temp = _data[2];
   *humi = _data[3];
+  *light = _data[4];
 }
 
 
@@ -265,13 +266,40 @@ int hexToDec(String hexString)
 /*Task*/
 void Task1( void * parameter) {
   while(1) {
-        //Serial.println("task1");
-        xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
-        Firebase.setInt(fbdo,"/Node1/DataFromNode/temp",temp);
-        Firebase.setInt(fbdo,"/Node1/DataFromNode/humi",humi);
-        Firebase.setInt(fbdo,"/Node1/DataFromNode/light",light);
-        Firebase.setInt(fbdo,"/Node1/DataFromNode/air",10);
-        xSemaphoreGive(xMutex); // release mutex 
+        /*sent data to firebase*/
+              xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/temp",temp);
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/humi",humi);
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/light",light);
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/air",10);
+              xSemaphoreGive(xMutex); // release mutex 
+        if (E32.available()) 
+        {
+          String Data_From_Lora = E32.readString();
+          //Serial.println(Data_From_Lora);
+          if(check_lora_add(&Data_From_Lora) == true)
+          {
+              //Serial.println("oke em !");
+              uint8_t ID_node = Get_node_ID(&Data_From_Lora);
+              
+              Get_data(&Data_From_Lora,&humi,&temp,&light);
+              Serial.println("du lieu tu Node");
+              Serial.println(ID_node);
+             Serial.println("gia tri do am dat: ");
+             Serial.println(humi);
+             // E32.println(0x01); //return 1 byte status oke 
+    
+             /*sent data to firebase*/
+              xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/temp",temp);
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/humi",humi);
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/light",light);
+              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/air",10);
+              xSemaphoreGive(xMutex); // release mutex 
+    
+          }
+        }
+
   }
 }
 
@@ -309,6 +337,7 @@ void Task2( void * parameter) {
             if( temp > _temp)
             {
                 Serial.println("Turn on the fan.");
+                digitalWrite(OUT1,LOW);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
                 Firebase.setBool(fbdo,"/Node1/control/fan",true);
                 xSemaphoreGive(xMutex); // release mutex
@@ -316,6 +345,7 @@ void Task2( void * parameter) {
             else
             {
                 Serial.println("Turn off the fan.");
+                digitalWrite(OUT1,HIGH);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
                 Firebase.setBool(fbdo,"/Node1/control/fan",false);
                 xSemaphoreGive(xMutex); // release mutex
@@ -324,6 +354,7 @@ void Task2( void * parameter) {
             if( light < _light)
             {
                 Serial.println("Turn on the lamp.");
+                digitalWrite(OUT2,LOW);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
                 Firebase.setBool(fbdo,"/Node1/control/lamp",true);
                 xSemaphoreGive(xMutex); // release mutex
@@ -331,6 +362,7 @@ void Task2( void * parameter) {
             else
             {
                 Serial.println("Turn off the lamp.");
+                digitalWrite(OUT2,HIGH);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
                 Firebase.setBool(fbdo,"/Node1/control/lamp",false);
                 xSemaphoreGive(xMutex); // release mutex
@@ -339,6 +371,7 @@ void Task2( void * parameter) {
             if( humi < _humi)
             {
                 Serial.println("Turn on the motor.");
+                digitalWrite(OUT3,LOW);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
                 Firebase.setBool(fbdo,"/Node1/control/motor",true);
                 xSemaphoreGive(xMutex); // release mutex
@@ -346,6 +379,7 @@ void Task2( void * parameter) {
             else
             {
                 Serial.println("Turn off the motor.");
+                digitalWrite(OUT3,HIGH);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
                 Firebase.setBool(fbdo,"/Node1/control/motor",false);
                 xSemaphoreGive(xMutex); // release mutex
@@ -375,10 +409,12 @@ void Task2( void * parameter) {
                 if(fan == true)
                 {
                   Serial.println("Turn on the fan.");
+                  digitalWrite(OUT1,LOW);
                 }    
                 else 
                 {
                   Serial.println("Turn off the fan.");
+                  digitalWrite(OUT1,HIGH);
                 }               
             }
 
@@ -388,10 +424,12 @@ void Task2( void * parameter) {
                 if(lamp == true)
                 {
                   Serial.println("Turn on the lamp.");
+                  digitalWrite(OUT2,LOW);
                 }    
                 else 
                 {
                   Serial.println("Turn off the lamp.");
+                   digitalWrite(OUT2,HIGH);
                 }               
             }
 
@@ -401,10 +439,12 @@ void Task2( void * parameter) {
                 if(motor == true)
                 {
                   Serial.println("Turn on the motor.");
+                   digitalWrite(OUT3,LOW);
                 }    
                 else 
                 {
                   Serial.println("Turn off the motor.");
+                   digitalWrite(OUT3,HIGH);
                 }               
             }
 			  } 
@@ -428,34 +468,12 @@ void setup() {
     xMutex = xSemaphoreCreateMutex();
     xTaskCreate(Task1,"Task1",10000,NULL,1,NULL);
     xTaskCreate(Task2,"Task2",10000,NULL,1,NULL);
-    humi = 10;
-    light = 10;
-    temp = 10;
+    humi = 30;
+    light = 30;
+    temp = 30;
 }
 
 
 void loop() {
-    if (E32.available()) 
-      {
-        String Data_From_Lora = E32.readString();
-        Serial.println(Data_From_Lora);
-    
-          if(check_lora_add(&Data_From_Lora) == true)
-          {
-              //Serial.println("oke em !");
-              uint8_t ID_node = Get_node_ID(&Data_From_Lora);
-              uint8_t humi,temp;
-              Get_data(&Data_From_Lora,&humi,&temp);
-              Serial.println("du lieu tu Node");
-              Serial.println(ID_node);
-             Serial.println("gia tri do am dat: ");
-             Serial.println(humi);
-             // E32.println(0x01); //return 1 byte status oke 
-    
-             /*sent data to firebase*/
-            
-    
-         }
-     }
-   
+    vTaskDelay(1000);
 }
