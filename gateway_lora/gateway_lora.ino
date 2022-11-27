@@ -20,10 +20,7 @@
 #define DATABASE_URL "https://esp32-7691f-default-rtdb.firebaseio.com/"
 FirebaseData fbdo;
 FirebaseAuth auth;
-//-------Blynk v2-----
 
-#define BLYNK_TEMPLATE_ID "TMPLZ9qSov21"
-#define BLYNK_DEVICE_NAME "Lora"
 
 //-----Lorawan------
 /**
@@ -37,10 +34,9 @@ FirebaseAuth auth;
 #define M0 0
 #define M1 4
 #define LED 2
-#define OUT1 12
-#define OUT2 14
-#define OUT3 27
-#define OUT4 24
+#define OUT1 14
+#define OUT2 27
+#define OUT3 26
 
 HardwareSerial E32(2);
 SemaphoreHandle_t  xMutex;
@@ -114,13 +110,11 @@ void control_setup(void)
   pinMode(OUT1,OUTPUT);
   pinMode(OUT2,OUTPUT);
   pinMode(OUT3,OUTPUT);
-  pinMode(OUT4,OUTPUT);
   pinMode(LED,OUTPUT);
   /*state init*/
   digitalWrite(OUT1,HIGH);
   digitalWrite(OUT2,HIGH);
   digitalWrite(OUT3,HIGH);
-  digitalWrite(OUT4,HIGH);
 }
 
 
@@ -235,14 +229,14 @@ uint8_t Get_node_ID(String *Data)
     return (uint8_t)_data[1];
 } 
 
-void Get_data(String *Data, uint8_t *humi, uint8_t *temp, uint8_t *light)
+void Get_data(String *Data, uint8_t *humi_var, uint8_t *temp_var, uint8_t *light_var)
 {
   int lengh = Data->length() + 1;
   char _data[lengh];
   Data->toCharArray(_data,lengh ); 
-  *temp = _data[2];
-  *humi = _data[3];
-  *light = _data[4];
+  *temp_var = (uint8_t)_data[2];
+  *humi_var = (uint8_t)_data[3];
+  *light_var = (uint8_t)_data[4];
 }
 
 
@@ -265,14 +259,10 @@ int hexToDec(String hexString)
 
 /*Task*/
 void Task1( void * parameter) {
+  
   while(1) {
         /*sent data to firebase*/
-              xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/temp",temp);
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/humi",humi);
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/light",light);
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/air",10);
-              xSemaphoreGive(xMutex); // release mutex 
+            
         if (E32.available()) 
         {
           String Data_From_Lora = E32.readString();
@@ -285,16 +275,20 @@ void Task1( void * parameter) {
               Get_data(&Data_From_Lora,&humi,&temp,&light);
               Serial.println("du lieu tu Node");
               Serial.println(ID_node);
-             Serial.println("gia tri do am dat: ");
-             Serial.println(humi);
+              Serial.println("gia tri do am dat: ");
+              Serial.println(humi);
+              Serial.println("gia tri nhiet do: ");
+              Serial.println(temp);
+              Serial.println("gia tri anh sang: ");
+              Serial.println(light);
              // E32.println(0x01); //return 1 byte status oke 
     
              /*sent data to firebase*/
               xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/temp",temp);
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/humi",humi);
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/light",light);
-              Firebase.setInt(fbdo,"/Node"+String(1)+"/DataFromNode/air",10);
+              Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/temp",temp);
+              Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/humi",humi);
+              Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/light",light);
+              //Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/air",10);
               xSemaphoreGive(xMutex); // release mutex 
     
           }
@@ -468,9 +462,6 @@ void setup() {
     xMutex = xSemaphoreCreateMutex();
     xTaskCreate(Task1,"Task1",10000,NULL,1,NULL);
     xTaskCreate(Task2,"Task2",10000,NULL,1,NULL);
-    humi = 30;
-    light = 30;
-    temp = 30;
 }
 
 
