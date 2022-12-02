@@ -16,8 +16,12 @@
 #include "esp_task_wdt.h"
 //----firebase--------
 
-#define API_KEY "WFlGeZDmqtQqeEkFlcSXPtIVt4KPt8BtNH2KyBn7"
-#define DATABASE_URL "https://esp32-7691f-default-rtdb.firebaseio.com/"
+//#define API_KEY "WFlGeZDmqtQqeEkFlcSXPtIVt4KPt8BtNH2KyBn7"
+//#define DATABASE_URL "https://esp32-7691f-default-rtdb.firebaseio.com/"
+
+
+#define API_KEY "igl4qYVDh02KscaKgZIZ7hdHGUeMT5oXFuwR55bG"
+#define DATABASE_URL "https://smarthome-6495e-default-rtdb.firebaseio.com/"
 FirebaseData fbdo;
 FirebaseAuth auth;
 
@@ -285,9 +289,9 @@ void Task1( void * parameter) {
     
              /*sent data to firebase*/
               xSemaphoreTake(xMutex, portMAX_DELAY);  //take mutex 
-              Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/temp",temp);
-              Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/humi",humi);
-              Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/light",light);
+              Firebase.setInt(fbdo,"listNode/Node"+String(ID_node)+"/data/temp",temp);
+              Firebase.setInt(fbdo,"listNode/Node"+String(ID_node)+"/data/humi",humi);
+              Firebase.setInt(fbdo,"listNode/Node"+String(ID_node)+"/data/light",light);
               //Firebase.setInt(fbdo,"/Node"+String(ID_node)+"/DataFromNode/air",10);
               xSemaphoreGive(xMutex); // release mutex 
     
@@ -305,7 +309,7 @@ void Task2( void * parameter) {
 	  while(1) {
 	      //Serial.println("task2");
 			  xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-        if(Firebase.RTDB.getBool(&fbdo,"/Node1/autocontrol"))
+        if(Firebase.RTDB.getBool(&fbdo,"listNode/Node1/control/autoControl"))
 			  {
           autocontrol = fbdo.boolData(); 
         }
@@ -314,26 +318,27 @@ void Task2( void * parameter) {
 			  if(autocontrol == true)
 			  {
             xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-            if(Firebase.RTDB.getInt(&fbdo,"/Node1/threshold/humi"))
+            if(Firebase.RTDB.getInt(&fbdo,"listNode/Node1/threshold/humi"))
             {
                 _humi = fbdo.intData();
             }
-            if(Firebase.RTDB.getInt(&fbdo,"/Node1/threshold/light"))
+            if(Firebase.RTDB.getInt(&fbdo,"listNode/Node1/threshold/light"))
             {
                 _light = fbdo.intData();
             }
-            if(Firebase.RTDB.getInt(&fbdo,"/Node1/threshold/temp"))
+            if(Firebase.RTDB.getInt(&fbdo,"listNode/Node1/threshold/temp"))
             {
                 _temp = fbdo.intData();
             }
             xSemaphoreGive(xMutex); // release mutex
             /*check the threshold and control device*/
+          
             if( temp > _temp)
             {
                 Serial.println("Turn on the fan.");
                 digitalWrite(OUT1,LOW);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-                Firebase.setBool(fbdo,"/Node1/control/fan",true);
+                Firebase.setBool(fbdo,"listNode/Node1/control/fan",true);
                 xSemaphoreGive(xMutex); // release mutex
             }
             else
@@ -341,7 +346,7 @@ void Task2( void * parameter) {
                 Serial.println("Turn off the fan.");
                 digitalWrite(OUT1,HIGH);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-                Firebase.setBool(fbdo,"/Node1/control/fan",false);
+                Firebase.setBool(fbdo,"listNode/Node1/control/fan",false);
                 xSemaphoreGive(xMutex); // release mutex
             }
 
@@ -350,7 +355,7 @@ void Task2( void * parameter) {
                 Serial.println("Turn on the lamp.");
                 digitalWrite(OUT2,LOW);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-                Firebase.setBool(fbdo,"/Node1/control/lamp",true);
+                Firebase.setBool(fbdo,"listNode/node1/control/lamp",true);
                 xSemaphoreGive(xMutex); // release mutex
             }
             else
@@ -358,7 +363,7 @@ void Task2( void * parameter) {
                 Serial.println("Turn off the lamp.");
                 digitalWrite(OUT2,HIGH);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-                Firebase.setBool(fbdo,"/Node1/control/lamp",false);
+                Firebase.setBool(fbdo,"listNode/Node1/control/lamp",false);
                 xSemaphoreGive(xMutex); // release mutex
             }
             
@@ -367,7 +372,7 @@ void Task2( void * parameter) {
                 Serial.println("Turn on the motor.");
                 digitalWrite(OUT3,LOW);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-                Firebase.setBool(fbdo,"/Node1/control/motor",true);
+                Firebase.setBool(fbdo,"listNode/Node1/control/motor",true);
                 xSemaphoreGive(xMutex); // release mutex
             }
             else
@@ -375,23 +380,24 @@ void Task2( void * parameter) {
                 Serial.println("Turn off the motor.");
                 digitalWrite(OUT3,HIGH);
                 xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-                Firebase.setBool(fbdo,"/Node1/control/motor",false);
+                Firebase.setBool(fbdo,"listNode/Node1/control/motor",false);
                 xSemaphoreGive(xMutex); // release mutex
             }
+             
            
 			  }
 			  else
 			  {	 
               xSemaphoreTake(xMutex, portMAX_DELAY); //take mutex
-              if(Firebase.RTDB.getBool(&fbdo,"/Node1/control/fan"))
+              if(Firebase.RTDB.getBool(&fbdo,"listNode/Node1/control/fan"))
               {
                 fan_temp = fbdo.boolData(); 
               }
-              if(Firebase.RTDB.getBool(&fbdo,"/Node1/control/lamp"))
+              if(Firebase.RTDB.getBool(&fbdo,"listNode/Node1/control/lamp"))
               {
                 lamp_temp = fbdo.boolData(); 
               }
-              if(Firebase.RTDB.getBool(&fbdo,"/Node1/control/motor"))
+              if(Firebase.RTDB.getBool(&fbdo,"listNode/Node1/control/motor"))
               {
                 motor_temp = fbdo.boolData(); 
               }
